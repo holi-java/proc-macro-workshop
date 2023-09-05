@@ -2,6 +2,8 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse::Parse, Data, DeriveInput, Ident};
 
+use crate::field::Field;
+
 pub(crate) struct Debug {
     input: DeriveInput,
 }
@@ -28,10 +30,7 @@ impl ToTokens for Debug {
             _ => todo!(),
         };
 
-        let debug_fields = fields.into_iter().map(|f| {
-            let name = &f.ident;
-            quote!(field(&stringify!(#name), &self.#name))
-        });
+        let debug_fields = fields.into_iter().map(|f| Field::from(f.clone()));
         tokens.extend(quote!(
             impl #fmt::Debug for Field {
                 fn fmt(&self, f: &mut #fmt::Formatter<'_>) -> #fmt::Result {

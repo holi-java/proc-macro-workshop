@@ -5,6 +5,8 @@ edition = "2021"
 publish = false
 
 [workspace]
+members = ["syn-test"]
+resolver = "2"
 
 [[bin]]
 name = "workshop"
@@ -16,3 +18,4 @@ derive_builder = { path = "builder" }
 derive_debug = { path = "debug" }
 seq = { path = "seq" }
 sorted = { path = "sorted" }
+syn-test = { path = "syn-test" }

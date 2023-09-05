@@ -3,7 +3,7 @@ mod field;
 mod generator;
 mod setter;
 #[cfg(test)]
-mod test;
+use syn_test::assert_token_stream_eq;
 use generator::Generator;
 use quote::ToTokens;
 
