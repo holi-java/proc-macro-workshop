@@ -47,13 +47,8 @@ impl From<syn::Field> for Field {
 
 #[cfg(test)]
 mod tests {
-    use crate::assert_token_stream_eq;
-    macro_rules! field {
-        ($($tt: tt)*) => {{
-            let field: super::Field = ::syn::parse_quote!($($tt)*);
-            field
-        }};
-    }
+    use crate::{assert_token_stream_eq, generate_macro};
+    generate_macro!(field, super::Field);
 
     #[test]
     fn normal_field() {
@@ -64,6 +59,8 @@ mod tests {
     #[test]
     fn custom_format_field() {
         let field = field!(#[debug = ":>5"]s: String);
-        assert_token_stream_eq!(field, { field(&stringify!(s), &format_args!(":>5", self.s)) });
+        assert_token_stream_eq!(field, {
+            field(&stringify!(s), &format_args!(":>5", self.s))
+        });
     }
 }
