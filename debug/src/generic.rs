@@ -1,16 +1,14 @@
-use std::ops::Deref;
-
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
-use syn::parse::Parse;
+use quote::quote;
+use syn::DeriveInput;
 
-pub(crate) struct Generics {
-    inner: syn::Generics,
+pub(crate) struct Generics<'a> {
+    inner: &'a DeriveInput,
 }
 
-impl Generics {
+impl Generics<'_> {
     pub fn params(&self) -> TokenStream {
-        let params = self.type_params();
+        let params = self.inner.generics.type_params().map(|param| &param.ident);
         let params = quote!(#(#params),*);
         if params.is_empty() {
             TokenStream::new()
@@ -18,38 +16,26 @@ impl Generics {
             quote!(<#params>)
         }
     }
-}
 
-impl Parse for Generics {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let inner = input.parse::<syn::Generics>()?;
-        Ok(inner.into())
-    }
-}
-
-impl ToTokens for Generics {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+    pub fn where_clause(&self) -> TokenStream {
         let params = self
+            .inner
+            .generics
             .type_params()
+            .map(|param| &param.ident)
             .map(|param| quote!(#param: ::core::fmt::Debug));
-        let params = quote!(#(#params),*);
-        if !params.is_empty() {
-            tokens.extend(quote!(<#params>));
+        let bounds = quote!(#(#params),*);
+        if bounds.is_empty() {
+            TokenStream::new()
+        } else {
+            quote!(where #bounds,)
         }
     }
 }
 
-impl Deref for Generics {
-    type Target = syn::Generics;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl From<syn::Generics> for Generics {
-    fn from(inner: syn::Generics) -> Self {
-        Self { inner }
+impl<'a> From<&'a syn::DeriveInput> for Generics<'a> {
+    fn from(input: &'a syn::DeriveInput) -> Self {
+        Generics { inner: input }
     }
 }
 
@@ -57,19 +43,59 @@ impl From<syn::Generics> for Generics {
 mod tests {
     use crate::{assert_token_stream_eq, generate_macro};
 
-    generate_macro!(generics, super::Generics);
+    generate_macro!(derive, syn::DeriveInput);
+
+    macro_rules! generics {
+        ($name:ident => $($tt:tt)*) => {
+            let _derive = derive!($($tt)*);
+            let $name = super::Generics::from(&_derive);
+        };
+    }
 
     #[test]
     fn empty() {
-        let g = generics!();
-        assert_token_stream_eq!(g, {});
+        generics!(g =>
+            #[derive(CustomDebug)]
+            struct Empty;
+        );
+        assert_token_stream_eq!(g.where_clause(), {});
         assert_token_stream_eq!(g.params(), {});
     }
 
     #[test]
     fn simple() {
-        let g = generics!(<T>);
-        assert_token_stream_eq!(g, { <T: ::core::fmt::Debug>});
+        generics!(g =>
+            #[derive(CustomDebug)]
+            struct Field<T> {
+                name: T
+            }
+        );
+        assert_token_stream_eq!(g.where_clause(), { where T: ::core::fmt::Debug,});
+        assert_token_stream_eq!(g.params(), {<T>});
+    }
+
+    #[test]
+    fn generic_with_bounds() {
+        generics!(g =>
+            #[derive(CustomDebug)]
+            struct Field<T: Trait> {
+                name: T
+            }
+        );
+        assert_token_stream_eq!(g.where_clause(), { where T: ::core::fmt::Debug, });
+        assert_token_stream_eq!(g.params(), {<T>});
+    }
+
+    #[test]
+    #[ignore]
+    fn generic_with_associated_type() {
+        generics!(g =>
+            #[derive(CustomDebug)]
+            struct Field<T: Trait> {
+                name: T::Name
+            }
+        );
+        assert_token_stream_eq!(g.where_clause(), { where T: Trait, T::Name: ::core::fmt::Debug, });
         assert_token_stream_eq!(g.params(), {<T>});
     }
 }

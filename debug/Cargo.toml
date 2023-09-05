@@ -16,6 +16,7 @@ path = "tests/progress.rs"
 trybuild = { version = "1.0.49", features = ["diff"] }
 syn-test = { path = "../syn-test" }
 pretty_assertions = "*"
+syn = { version = "2.0.31", features = ["full", "extra-traits"] }
 
 [dependencies]
 syn = "2.0.31"

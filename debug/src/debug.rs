@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse::Parse, Data, DeriveInput, Ident};
@@ -22,7 +24,7 @@ impl Debug {
     }
 
     fn generics(&self) -> Generics {
-        self.input.generics.clone().into()
+        self.input.borrow().into()
     }
 }
 
@@ -36,10 +38,10 @@ impl Parse for Debug {
 impl ToTokens for Debug {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let (name, fields, generics) = (self.name(), self.fields(), self.generics());
-        let params = generics.params();
+        let (params, where_clause) = (generics.params(), generics.where_clause());
         let fmt: TokenStream = quote!(::core::fmt);
         tokens.extend(quote!(
-            impl #generics #fmt::Debug for #name #params {
+            impl #params #fmt::Debug for #name #params #where_clause {
                 fn fmt(&self, f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
                     f.debug_struct(stringify!(#name)).
                         #(#fields.)*
@@ -121,7 +123,10 @@ mod tests {
             }
         );
         assert_token_stream_eq!(debug, {
-            impl<T: ::core::fmt::Debug> ::core::fmt::Debug for Field<T> {
+            impl<T> ::core::fmt::Debug for Field<T>
+            where
+                T: ::core::fmt::Debug,
+            {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     f.debug_struct(stringify!(Field))
                         .field(&stringify!(name), &self.name)
