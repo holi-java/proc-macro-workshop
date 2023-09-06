@@ -1,7 +1,6 @@
 use proc_macro::TokenStream;
 mod debug;
-mod field;
-mod generic;
+mod fields;
 use debug::Debug;
 use quote::ToTokens;
 #[cfg(test)]

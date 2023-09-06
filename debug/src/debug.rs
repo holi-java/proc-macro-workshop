@@ -1,10 +1,8 @@
-use std::borrow::Borrow;
-
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{parse::Parse, Data, DeriveInput, Ident};
+use syn::{parse::Parse, DeriveInput, Ident};
 
-use crate::{field::Field, generic::Generics};
+use crate::fields::Fields;
 
 pub(crate) struct Debug {
     input: DeriveInput,
@@ -15,16 +13,8 @@ impl Debug {
         &self.input.ident
     }
 
-    fn fields(&self) -> impl Iterator<Item = Field> + '_ {
-        let fields = match self.input.data {
-            Data::Struct(ref s) => &s.fields,
-            _ => todo!(),
-        };
-        fields.iter().map(|f| Field::from(f.clone()))
-    }
-
-    fn generics(&self) -> Generics {
-        self.input.borrow().into()
+    fn fields(&self) -> Fields<'_> {
+        Fields::from(&self.input)
     }
 }
 
@@ -37,15 +27,13 @@ impl Parse for Debug {
 
 impl ToTokens for Debug {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let (name, fields, generics) = (self.name(), self.fields(), self.generics());
-        let (params, where_clause) = (generics.params(), generics.where_clause());
+        let (name, fields) = (self.name(), self.fields());
+        let (params, where_clause) = (fields.params(), fields.where_clause());
         let fmt: TokenStream = quote!(::core::fmt);
         tokens.extend(quote!(
             impl #params #fmt::Debug for #name #params #where_clause {
                 fn fmt(&self, f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
-                    f.debug_struct(stringify!(#name)).
-                        #(#fields.)*
-                        finish()
+                    f.debug_struct(stringify!(#name))#fields.finish()
                 }
             }
         ));
