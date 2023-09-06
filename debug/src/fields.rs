@@ -1,4 +1,6 @@
-use proc_macro2::TokenStream;
+use std::{cell::RefCell, collections::HashSet};
+
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
     Data, DeriveInput, Expr, ExprLit, GenericArgument, Lit, PathArguments, PathSegment, Type,
@@ -6,6 +8,7 @@ use syn::{
 
 pub(crate) struct Fields<'a> {
     input: &'a DeriveInput,
+    processed: RefCell<HashSet<Ident>>,
 }
 
 impl Fields<'_> {
@@ -51,7 +54,9 @@ impl Fields<'_> {
                                 _ => false,
                             })
                         }
-                        _ => self.input.generics.type_params().any(|p| p.ident == *ident),
+                        _ => self.input.generics.type_params().any(|p| {
+                            p.ident == *ident && self.processed.borrow_mut().insert(ident.clone())
+                        }),
                     }
                 },
             ),
@@ -77,7 +82,10 @@ impl ToTokens for Fields<'_> {
 
 impl<'a> From<&'a DeriveInput> for Fields<'a> {
     fn from(input: &'a DeriveInput) -> Self {
-        Fields { input }
+        Fields {
+            input,
+            processed: Default::default(),
+        }
     }
 }
 
@@ -208,6 +216,19 @@ mod tests {
         assert_token_stream_eq!(fields.where_clause(), {
             where N: ::core::fmt::Debug, T: ::core::fmt::Debug,
         });
+    }
+    #[test]
+    fn generic_param_used_more_than_once() {
+        fields!(
+            fields,
+            #[derive(Any)]
+            struct Field<T> {
+                name: T,
+                alias: T,
+            }
+        );
+
+        assert_token_stream_eq!(fields.where_clause(), { where T: ::core::fmt::Debug, });
     }
 
     mod field {
