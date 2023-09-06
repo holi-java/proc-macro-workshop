@@ -28,10 +28,18 @@ impl Parse for Debug {
 impl ToTokens for Debug {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let (name, fields) = (self.name(), self.fields());
-        let (params, where_clause) = (fields.params(), fields.where_clause());
+        let (type_params, params, where_clause) = (
+            self.input.generics.type_params(),
+            fields.params(),
+            fields.where_clause(),
+        );
+        let mut type_params = quote!(#(#type_params),*);
+        if !type_params.is_empty() {
+            type_params = quote!(<#type_params>);
+        }
         let fmt: TokenStream = quote!(::core::fmt);
         tokens.extend(quote!(
-            impl #params #fmt::Debug for #name #params #where_clause {
+            impl #type_params #fmt::Debug for #name #params #where_clause {
                 fn fmt(&self, f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
                     f.debug_struct(stringify!(#name))#fields.finish()
                 }
