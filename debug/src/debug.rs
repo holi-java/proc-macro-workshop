@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse::Parse, DeriveInput, Ident};
 
-use crate::fields::Fields;
+use crate::{fields::Fields, generics::Generics};
 
 pub(crate) struct Debug {
     input: DeriveInput,
@@ -15,6 +15,10 @@ impl Debug {
 
     fn fields(&self) -> Fields<'_> {
         Fields::from(&self.input)
+    }
+
+    fn generics(&self) -> Generics<'_> {
+        Generics::new(&self.input.generics)
     }
 }
 
@@ -29,14 +33,10 @@ impl ToTokens for Debug {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let (name, fields) = (self.name(), self.fields());
         let (type_params, params, where_clause) = (
-            self.input.generics.type_params(),
+            self.generics().type_params(),
             fields.params(),
             fields.where_clause(),
         );
-        let mut type_params = quote!(#(#type_params),*);
-        if !type_params.is_empty() {
-            type_params = quote!(<#type_params>);
-        }
         let fmt: TokenStream = quote!(::core::fmt);
         tokens.extend(quote!(
             impl #type_params #fmt::Debug for #name #params #where_clause {

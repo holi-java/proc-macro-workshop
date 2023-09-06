@@ -1,11 +1,9 @@
-#![allow(dead_code)]
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use proc_macro2::Ident;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::GenericArgument;
 use syn::TypeParam;
 use syn::{PathArguments, Type};
 
@@ -22,20 +20,13 @@ impl<'a> Generics<'a> {
         }
     }
 
-    fn is_generic_type(&self, ty: &syn::Type) -> bool {
-        match ty {
-            Type::Path(path) => path.path.segments.iter().any(|seg| match &seg.arguments {
-                PathArguments::None if self.is_generic_arg(&seg.ident) => true,
-                PathArguments::AngleBracketed(args) => args.args.iter().any(|arg| match arg {
-                    GenericArgument::Type(ty) => self.is_generic_type(ty),
-                    _ => false,
-                }),
-                _ => false,
-            }),
-            Type::Reference(reference) => self.is_generic_type(&reference.elem),
-            Type::Tuple(tuple) => tuple.elems.iter().any(|ty| self.is_generic_type(ty)),
-            _ => false,
+    pub fn type_params(&self) -> TokenStream {
+        let type_params = self.inner.type_params();
+        let type_params = quote!(#(#type_params),*);
+        if !type_params.is_empty() {
+            return quote!(<#type_params>);
         }
+        type_params
     }
 
     fn is_generic_arg(&self, ident: &Ident) -> bool {
