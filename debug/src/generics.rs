@@ -1,15 +1,14 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use proc_macro2::Ident;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::TypeParam;
 use syn::{PathArguments, Type};
 
 pub(crate) struct Generics<'a> {
     inner: &'a syn::Generics,
-    processed: RefCell<HashMap<Ident, TypeParam>>,
+    processed: RefCell<HashSet<Ident>>,
 }
 
 impl<'a> Generics<'a> {
@@ -30,14 +29,9 @@ impl<'a> Generics<'a> {
     }
 
     fn is_generic_arg(&self, ident: &Ident) -> bool {
-        self.inner.type_params().any(|p| {
-            p.ident == *ident
-                && self
-                    .processed
-                    .borrow_mut()
-                    .insert(ident.clone(), p.clone())
-                    .is_none()
-        })
+        self.inner
+            .type_params()
+            .any(|p| p.ident == *ident && self.processed.borrow_mut().insert(ident.clone()))
     }
 
     pub fn type_param_bounds(&self, ty: &Type) -> TokenStream {
