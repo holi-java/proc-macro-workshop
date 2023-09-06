@@ -1,14 +1,12 @@
-use std::{cell::RefCell, collections::HashSet};
-
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{
-    Data, DeriveInput, Expr, ExprLit, GenericArgument, Lit, PathArguments, PathSegment, Type,
-};
+use syn::{Data, DeriveInput, Expr, ExprLit, Lit};
+
+use crate::generics::Generics;
 
 pub(crate) struct Fields<'a> {
     input: &'a DeriveInput,
-    processed: RefCell<HashSet<Ident>>,
+    generics: Generics<'a>,
 }
 
 impl Fields<'_> {
@@ -39,38 +37,6 @@ impl Fields<'_> {
             _ => todo!("supports struct only"),
         }
     }
-
-    fn is_generic_type(&self, ty: &Type) -> bool {
-        match ty {
-            Type::Path(ty) => ty.path.segments.iter().any(
-                |PathSegment {
-                     ident,
-                     arguments: args,
-                 }| {
-                    match args {
-                        PathArguments::AngleBracketed(args) => {
-                            return args.args.iter().any(|arg| match arg {
-                                GenericArgument::Type(ty) => self.is_generic_type(ty),
-                                _ => false,
-                            })
-                        }
-                        _ => self.input.generics.type_params().any(|p| {
-                            p.ident == *ident && self.processed.borrow_mut().insert(ident.clone())
-                        }),
-                    }
-                },
-            ),
-            _ => false,
-        }
-    }
-
-    fn generics<'a>(&self, ty: &'a Type) -> Option<&'a Type> {
-        if self.is_generic_type(ty) {
-            Some(ty)
-        } else {
-            None
-        }
-    }
 }
 
 impl ToTokens for Fields<'_> {
@@ -84,7 +50,7 @@ impl<'a> From<&'a DeriveInput> for Fields<'a> {
     fn from(input: &'a DeriveInput) -> Self {
         Fields {
             input,
-            processed: Default::default(),
+            generics: Generics::new(&input.generics),
         }
     }
 }
@@ -100,10 +66,7 @@ impl<'a, 'b> Field<'a, 'b> {
     }
 
     pub fn type_params(&self) -> TokenStream {
-        match self.owner.generics(&self.field.ty) {
-            Some(ty) => quote!(#ty: ::core::fmt::Debug),
-            None => TokenStream::new(),
-        }
+        self.owner.generics.type_param_bounds(&self.field.ty)
     }
 
     fn format_args(&self) -> TokenStream {
@@ -282,20 +245,6 @@ mod tests {
             );
 
             assert_token_stream_eq!(field.type_params(), { T: ::core::fmt::Debug });
-        }
-
-        #[test]
-        #[ignore]
-        fn generics_type_params_with_lifetime() {
-            first_field!(
-                field,
-                #[derive(Any)]
-                struct Field<T> {
-                    name: &'static T,
-                }
-            );
-
-            assert_token_stream_eq!(field.type_params(), { &'static T: ::core::fmt::Debug });
         }
 
         #[test]

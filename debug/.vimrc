@@ -1,1 +1,1 @@
-map <S-F10> :wa \| bel term cargo test<CR>
+map <S-F10> :wa \| bel term cargo test --lib<CR>

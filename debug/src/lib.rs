@@ -1,6 +1,8 @@
+#![feature(type_name_of_val)]
 use proc_macro::TokenStream;
 mod debug;
 mod fields;
+mod generics;
 use debug::Debug;
 use quote::ToTokens;
 #[cfg(test)]
