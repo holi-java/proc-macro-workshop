@@ -5,9 +5,7 @@ use std::collections::HashMap;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::punctuated::Punctuated;
 use syn::GenericArgument;
-use syn::Token;
 use syn::TypeParam;
 use syn::{PathArguments, Type};
 
@@ -57,28 +55,10 @@ impl<'a> Generics<'a> {
             match ty {
                 Type::Path(path) => {
                     let mut tokens = TokenStream::new();
-                    let mut segments = path.path.segments.iter().peekable();
-                    while let Some(seg) = segments.next() {
+                    for seg in &path.path.segments {
                         let token = match &seg.arguments {
                             PathArguments::None if context.is_generic_arg(&seg.ident) => {
-                                let type_params = {
-                                    let mut type_params = Punctuated::<_, Token![,]>::new();
-                                    let is_associated_type = segments.peek().is_some()
-                                        && segments.all(|seg| seg.arguments.is_none());
-                                    if is_associated_type {
-                                        type_params.push(
-                                            context
-                                                .processed
-                                                .borrow()
-                                                .get(&seg.ident)
-                                                .unwrap()
-                                                .clone(),
-                                        );
-                                        type_params.push_punct(Default::default());
-                                    }
-                                    type_params
-                                };
-                                quote!(#type_params #root: ::core::fmt::Debug)
+                                quote!(#root: ::core::fmt::Debug)
                             }
                             PathArguments::AngleBracketed(args) => args
                                 .args
@@ -200,7 +180,7 @@ mod tests {
         let ty = type_of!(T::Value);
         assert_token_stream_eq!(
             g.type_param_bounds(&ty),
-            { T: Trait, T::Value: ::core::fmt::Debug }
+            { T::Value: ::core::fmt::Debug }
         );
     }
 
@@ -210,7 +190,7 @@ mod tests {
         let ty = type_of!(Box<T::Value>);
         assert_token_stream_eq!(
             g.type_param_bounds(&ty),
-            { T: Trait, Box<T::Value>: ::core::fmt::Debug }
+            { Box<T::Value>: ::core::fmt::Debug }
         );
     }
 }
