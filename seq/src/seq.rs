@@ -1,4 +1,4 @@
-use proc_macro2::{Group, Ident, Literal, TokenStream, TokenTree};
+use proc_macro2::{Group, Ident, Literal, Punct, TokenStream, TokenTree};
 use quote::{ToTokens, TokenStreamExt};
 use syn::{
     parse::{Parse, ParseStream},
@@ -53,30 +53,63 @@ impl Body {
     {
         let mut result = TokenStream::new();
         for n in range {
-            for tt in self.body.clone() {
-                result.append(replace(tt, var, n));
-            }
+            result.extend(replace(self.body.clone(), var, n));
         }
         return result;
 
-        fn replace(tt: TokenTree, var: &Ident, n: i32) -> TokenTree {
-            match &tt {
-                TokenTree::Ident(ident) if ident == var => {
-                    let mut lit = Literal::i32_unsuffixed(n);
-                    lit.set_span(tt.span());
-                    lit.into()
-                }
-                TokenTree::Group(group) => {
-                    let mut tokens = TokenStream::new();
-                    for tt in group.stream() {
-                        tokens.append(replace(tt, var, n));
+        fn replace(tokens: TokenStream, var: &Ident, n: i32) -> TokenStream {
+            const CAT: char = '~';
+            let mut result = TokenStream::new();
+            let (mut cat, mut prev) = (None::<Punct>, None::<Ident>);
+            for tt in tokens {
+                let mut current = None::<Ident>;
+
+                if let TokenTree::Punct(punct) = &tt {
+                    if punct.as_char() == CAT && cat.is_none() {
+                        cat.replace(punct.clone());
+                        continue;
                     }
-                    let mut group = Group::new(group.delimiter(), tokens);
-                    group.set_span(tt.span());
-                    group.into()
                 }
-                _ => tt,
+
+                if let TokenTree::Ident(ident) = &tt {
+                    if ident == var {
+                        if let Some(tt) = prev.take() {
+                            if cat.take().is_some() {
+                                result.append(Ident::new(&format!("{tt}{n}"), tt.span()));
+                                continue;
+                            }
+                            result.append(tt);
+                        }
+                        let mut lit = Literal::i32_unsuffixed(n);
+                        lit.set_span(tt.span());
+                        result.append(lit);
+                        continue;
+                    }
+                    current = Some(ident.clone());
+                }
+
+                if let Some(tt) = prev.take() {
+                    result.append(tt);
+                }
+                if let Some(tt) = cat.take() {
+                    result.append(tt);
+                }
+                if let Some(tt) = current.take() {
+                    prev = Some(tt);
+                    continue;
+                }
+
+                if let TokenTree::Group(group) = &tt {
+                    let mut replace =
+                        Group::new(group.delimiter(), replace(group.stream(), var, n));
+                    replace.set_span(group.span());
+                    result.append(replace);
+                    continue;
+                }
+
+                result.append(tt);
             }
+            result
         }
     }
 }
@@ -136,8 +169,33 @@ mod tests {
                 N
             }
         );
-
         assert_token_stream_eq!(seq, {0 1 2});
+
+        let seq = seq!(
+            N in 1..3 {
+                N
+            }
+        );
+        assert_token_stream_eq!(seq, { 1 2 });
+    }
+
+    #[test]
+    fn seq_with_var_repeatedly() {
+        let seq = seq!(N in 2..4 {
+            fn f~N () -> u64 {
+                N * 2
+            }
+        });
+
+        assert_token_stream_eq!(seq, {
+            fn f2() -> u64 {
+                2 * 2
+            }
+
+            fn f3() -> u64 {
+                3 * 2
+            }
+        });
     }
 
     #[test]
@@ -155,5 +213,12 @@ mod tests {
     #[test]
     fn eval_body_grouped_var() {
         assert_token_stream_eq!(body!({ (N) }).eval(&ident!(N), 0..2), { (0)(1) });
+    }
+
+    #[test]
+    fn eval_body_with_var_followed_by_join_separator() {
+        assert_token_stream_eq!(body!({ f~a~N }).eval(&ident!(N), 1..3), { f~a1 f~a2 });
+        assert_token_stream_eq!(body!({ f~(N) }).eval(&ident!(N), 1..3), { f~(1) f~(2) });
+        assert_token_stream_eq!(body!({ f b N }).eval(&ident!(N), 1..3), { f b 1 f b 2});
     }
 }
