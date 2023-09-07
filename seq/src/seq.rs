@@ -32,10 +32,8 @@ impl ToTokens for Seq {
         fn to_i32(expr: &Option<Box<Expr>>, default: i32) -> syn::Result<i32> {
             expr.as_ref()
                 .map(|expr| match &**expr {
-                    Expr::Lit(ExprLit {
-                        lit: Lit::Int(n),
-                        attrs: _,
-                    }) => n.base10_parse(),
+                    #[rustfmt::skip]
+                    Expr::Lit(ExprLit { lit: Lit::Int(n), attrs: _, }) => n.base10_parse(),
                     _ => Err(Error::new(expr.span(), "supports integer only")),
                 })
                 .unwrap_or(Ok(default))
@@ -51,11 +49,10 @@ impl Body {
     where
         I: IntoIterator<Item = i32>,
     {
-        let mut result = TokenStream::new();
-        for n in range {
-            result.extend(replace(self.body.clone(), var, n));
-        }
-        return result;
+        return range
+            .into_iter()
+            .map(|n| replace(self.body.clone(), var, n))
+            .collect();
 
         fn replace(tokens: TokenStream, var: &Ident, n: i32) -> TokenStream {
             const CAT: char = '~';
