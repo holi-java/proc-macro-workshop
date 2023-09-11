@@ -20,16 +20,31 @@ macro_rules! assert_token_stream_eq {
 }
 
 #[macro_export]
-macro_rules! generate_macro {
-        ($name:ident, $ty:ty) => {
-            $crate::generate_macro!(($)$name, $ty);
-        };
-        (($dollar:tt) $name:ident, $ty:ty) => {
-            macro_rules! $name {
-                ($dollar($dollar tt:tt)*) => {{
-                    let field: $ty = ::syn::parse_quote!($dollar($dollar tt)*);
-                    field
-                }};
-            }
-        };
+macro_rules! generate_parse_quote {
+    ($name:ident, $ty:ty) => {
+        $crate::generate_parse_quote!(($)$name, $ty);
+    };
+    (($dollar:tt) $name:ident, $ty:ty) => {
+        macro_rules! $name {
+            ($dollar($dollar tt:tt)*) => {{
+                let $name: $ty = ::syn::parse_quote!($dollar($dollar tt)*);
+                $name
+            }};
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! generate_parse_str {
+    ($name:ident, $ty:ty) => {
+        $crate::generate_parse_str!(($)$name, $ty);
+    };
+    (($dollar:tt) $name:ident, $ty:ty) => {
+        macro_rules! $name {
+            ($dollar($dollar tt:tt)*) => {{
+                let $name: ::syn::Result<$ty> = ::syn::parse_str(stringify!($dollar($dollar tt)*));
+                $name
+            }};
+        }
+    };
     }

@@ -3,10 +3,10 @@ use quote::ToTokens;
 use syn::{
     parse::{Parse, ParseStream},
     spanned::Spanned,
-    Error, Expr, ExprLit, ExprRange, Lit, Token,
+    Error, Expr, ExprLit, ExprRange, Lit, RangeLimits, Token,
 };
 
-use crate::body::Body;
+use crate::{body::Body, compiler::Eval};
 
 pub(crate) struct Seq {
     ident: Ident,
@@ -29,7 +29,12 @@ impl ToTokens for Seq {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let start = to_i32(&self.range.start, 0).unwrap();
         let end = to_i32(&self.range.end, i32::MAX).unwrap();
-        tokens.extend(self.body.eval(&self.ident, start..end));
+        let sections = self.body.compile(&self.ident);
+        if let RangeLimits::Closed(_) = self.range.limits {
+            tokens.extend(sections.into_iter().map(|sec| sec.eval(start..=end)));
+        } else {
+            tokens.extend(sections.into_iter().map(|sec| sec.eval(start..end)));
+        }
 
         fn to_i32(expr: &Option<Box<Expr>>, default: i32) -> syn::Result<i32> {
             expr.as_ref()
@@ -45,8 +50,8 @@ impl ToTokens for Seq {
 
 #[cfg(test)]
 mod tests {
-    use crate::{assert_token_stream_eq, generate_macro};
-    generate_macro!(seq, super::Seq);
+    use crate::{assert_token_stream_eq, generate_parse_quote, seq::Seq};
+    generate_parse_quote!(seq, super::Seq);
 
     #[test]
     fn parse_seq() {
@@ -89,6 +94,16 @@ mod tests {
     }
 
     #[test]
+    fn seq_with_inclusive_range() {
+        let seq = seq!(
+            N in 0..=3 {
+                N
+            }
+        );
+        assert_token_stream_eq!(seq, {0 1 2 3});
+    }
+
+    #[test]
     fn seq_with_var_repeatedly() {
         let seq = seq!(N in 1..4 {
             fn f~N () -> u64 {
@@ -107,6 +122,27 @@ mod tests {
 
             fn f3() -> u64 {
                 3 * 2
+            }
+        });
+    }
+
+    #[test]
+    fn seq_with_repeat_pattern() {
+        #[rustfmt::skip]
+        let seq = syn::parse_str::<Seq>(
+        "N in 0..3 {\
+            struct Fields {\
+                #(field~N: String,)*\
+            }\
+        }",
+        )
+        .unwrap();
+
+        assert_token_stream_eq!(seq, {
+            struct Fields {
+                field0: String,
+                field1: String,
+                field2: String,
             }
         });
     }

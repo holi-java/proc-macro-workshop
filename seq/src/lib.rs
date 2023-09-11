@@ -1,7 +1,13 @@
 use proc_macro::TokenStream;
-mod seq;
 mod body;
-mod section;
+mod compiler;
+mod part;
+mod repeat;
+mod seq;
+#[cfg(test)]
+mod stream;
+mod then;
+mod token;
 use quote::ToTokens;
 use seq::Seq;
 #[cfg(test)]
