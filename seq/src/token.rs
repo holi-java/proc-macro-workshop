@@ -2,13 +2,13 @@ use proc_macro2::{Delimiter, Group, Ident, Literal, Span, TokenStream, TokenTree
 use quote::ToTokens;
 use quote::TokenStreamExt;
 
-use crate::compiler::{Context, Eval, Value};
+use crate::compiler::{Context, Eval};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Token {
     Var(Option<Ident>, Ident),
     Tree(TokenTree),
-    Group(Value<Delimiter>, Span, Vec<Context<Token>>),
+    Group(Delimiter, Span, bool, Vec<Context<Token>>),
 }
 
 impl Eval for Token {
@@ -37,25 +37,22 @@ impl Eval for Token {
                 }
                 tokens
             }
-            Token::Group(delim, span, tokens) => {
-                if let (Some(delim), inner) = (delim.get(), delim.get().is_some()) {
-                    let mut body = TokenStream::new();
-                    if inner {
-                        for n in range {
-                            let mut group = Group::new(delim, tokens.eval(n..n + 1));
-                            group.set_span(*span);
-                            body.append(group);
-                        }
-                        return body;
-                    }
+            Token::Group(delim, span, inner, tokens) => {
+                let mut body = TokenStream::new();
+                if !*inner {
                     for n in range {
-                        body.extend(tokens.eval(n..n + 1));
+                        let mut group = Group::new(*delim, tokens.eval(n..n + 1));
+                        group.set_span(*span);
+                        body.append(group);
                     }
-                    let mut group = Group::new(delim, body);
-                    group.set_span(*span);
-                    return group.into_token_stream();
+                    return body;
                 }
-                todo!()
+                for n in range {
+                    body.extend(tokens.eval(n..n + 1));
+                }
+                let mut group = Group::new(*delim, body);
+                group.set_span(*span);
+                group.into_token_stream()
             }
         }
     }
@@ -78,8 +75,8 @@ const _: () = {
                     tokens.append(var.clone());
                 }
                 Token::Tree(tt) => tokens.append(tt.clone()),
-                Token::Group(delim, span, body) => {
-                    let mut group = Group::new(delim.get().unwrap(), body.stream());
+                Token::Group(delim, span, _, body) => {
+                    let mut group = Group::new(*delim, body.stream());
                     group.set_span(*span);
                     tokens.append(TokenTree::Group(group));
                 }
@@ -96,8 +93,8 @@ const _: () = {
             return match (self, other) {
                 (Self::Var(l0, l1), Self::Var(r0, r1)) => l0 == r0 && l1 == r1,
                 (Self::Tree(l0), Self::Tree(r0)) => eq(l0, r0),
-                (Self::Group(d1, _, lhs), Self::Group(d2, _, rhs)) => {
-                    d1 == d2 && eq(lhs.stream(), rhs.stream())
+                (Self::Group(d1, _, i1, lhs), Self::Group(d2, _, i2, rhs)) => {
+                    d1 == d2 && i1 == i2 && eq(lhs.stream(), rhs.stream())
                 }
                 _ => false,
             };
@@ -115,7 +112,7 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::Token::*;
-    use crate::compiler::{repeat as repeated, Eval, Value};
+    use crate::compiler::{repeat as repeated, Eval};
     use crate::{assert_token_stream_eq, generate_parse_quote};
     use proc_macro2::{Delimiter, Span};
 
@@ -127,7 +124,7 @@ mod tests {
         assert_token_stream_eq!(Var(ident!(f).into(), ident!(N)), { f~N });
         assert_token_stream_eq!(Var(None, ident!(N)), { ~N });
         assert_token_stream_eq!(
-            Group(Value::new(Delimiter::Parenthesis, false), Span::call_site(), vec![
+            Group(Delimiter::Parenthesis, Span::call_site(), false, vec![
                 repeated(Tree(tree!(<))),
                 repeated(Var(None, ident!(N)))
             ]),
@@ -149,8 +146,9 @@ mod tests {
     #[test]
     fn eval_group() {
         let group = Group(
-            Value::new(Delimiter::Bracket, false),
+            Delimiter::Bracket,
             Span::call_site(),
+            false,
             vec![
                 repeated(Tree(tree!(a))),
                 repeated(Tree(tree!(,))),

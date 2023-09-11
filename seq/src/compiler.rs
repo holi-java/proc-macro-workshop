@@ -76,32 +76,6 @@ impl<T: Eval> Eval for [T] {
     }
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
-pub enum Value<T> {
-    Once(Once<T>),
-    Repeat(T),
-}
-
-impl<T> Value<T> {
-    pub fn new(value: T, once: bool) -> Self {
-        if once {
-            Value::Once(Once::new(Some(value)))
-        } else {
-            Value::Repeat(value)
-        }
-    }
-}
-
-impl<T: Clone> Value<T> {
-    pub fn get(&self) -> Option<T> {
-        match self {
-            Value::Once(value) => value.borrow_mut().take(),
-            Value::Repeat(value) => Some(value.clone()),
-        }
-    }
-}
-
 #[cfg(test)]
 const _: () = {
     use quote::ToTokens;

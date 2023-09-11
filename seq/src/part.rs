@@ -5,7 +5,7 @@ use quote::TokenStreamExt;
 use syn::{parse::Parse, Ident};
 
 use crate::{
-    compiler::{group, Compiler, Context, Value},
+    compiler::{group, Compiler, Context},
     repeat::Repeat,
     then::Then,
     token::Token,
@@ -60,7 +60,7 @@ impl Compiler for Part {
                             .take()
                             .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
                         tokens.push(Context::new(
-                            Group(Value::new(group.delimiter(), once), group.span(), sub),
+                            Group(group.delimiter(), group.span(), once, sub),
                             once,
                         ));
                     }
@@ -122,7 +122,7 @@ mod tests {
 
     use crate::{
         assert_token_stream_eq,
-        compiler::{group, once, repeat as repeated, Compiler, Eval, Value},
+        compiler::{group, once, repeat as repeated, Compiler, Eval},
         generate_parse_quote, generate_parse_str,
         token::Token::*,
     };
@@ -185,13 +185,15 @@ mod tests {
             group([
                 repeated(Tree(tree!(#))),
                 repeated(Group(
-                    Value::Repeat(Delimiter::Bracket),
+                    Delimiter::Bracket,
                     Span::call_site(),
+                    false,
                     vec![
                         repeated(Tree(tree!(derive))),
                         repeated(Group(
-                            Value::Repeat(Delimiter::Parenthesis),
+                            Delimiter::Parenthesis,
                             Span::call_site(),
+                            false,
                             vec![
                                 repeated(Tree(tree!(Copy))),
                                 repeated(Tree(tree!(,))),
@@ -323,16 +325,18 @@ mod tests {
         assert_eq!(
             part.compile(&ident!(N), false),
             group([repeated(Group(
-                Value::new(Delimiter::Parenthesis, false),
+                Delimiter::Parenthesis,
                 Span::call_site(),
+                false,
                 vec![repeated(Var(None, ident!(N)))]
             ))])
         );
         assert_eq!(
             part.compile(&ident!(B), false),
             group([repeated(Group(
-                Value::new(Delimiter::Parenthesis, false),
+                Delimiter::Parenthesis,
                 Span::call_site(),
+                false,
                 vec![repeated(Tree(tree!(N)))]
             ))])
         );
@@ -354,8 +358,9 @@ mod tests {
         assert_eq!(
             part.compile(&ident!(N), true),
             group([once(Group(
-                Value::new(Delimiter::Parenthesis, true),
+                Delimiter::Parenthesis,
                 Span::call_site(),
+                true,
                 vec![once(Var(None, ident!(N))), once(Tree(tree!(B)))]
             ))])
         );

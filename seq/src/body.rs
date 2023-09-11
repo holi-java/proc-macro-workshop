@@ -2,7 +2,7 @@ use proc_macro2::{Delimiter, Group as SynGroup, Ident, Span};
 use syn::parse::{Parse, ParseStream};
 
 use crate::{
-    compiler::{repeat, Compiler, Context, Value},
+    compiler::{repeat, Compiler, Context},
     part::Part,
     repeat::Repeat,
     token::Token,
@@ -74,11 +74,9 @@ impl Compiler for BodyPart {
         match self {
             BodyPart::Normal(part) => part.compile(var, once),
             BodyPart::Repeat(part) => part.compile(var, once),
-            BodyPart::Group(delim, span, group) => repeat(Token::Group(
-                Value::new(*delim, once),
-                *span,
-                group.compile(var, once),
-            )),
+            BodyPart::Group(delim, span, group) => {
+                repeat(Token::Group(*delim, *span, once, group.compile(var, once)))
+            }
         }
     }
 }
@@ -158,7 +156,7 @@ mod tests {
     use proc_macro2::{Delimiter, Span};
 
     use crate::body::BodyPart;
-    use crate::compiler::{group as grouped, once, repeat as repeated, Compiler, Value};
+    use crate::compiler::{group as grouped, once, repeat as repeated, Compiler};
     use crate::token::Token::*;
     use crate::{assert_token_stream_eq, generate_parse_quote, generate_parse_str};
 
@@ -266,8 +264,9 @@ mod tests {
         assert_eq!(
             part.compile(&ident!(N), false),
             repeated(Group(
-                Value::new(Delimiter::Parenthesis, false),
+                Delimiter::Parenthesis,
                 Span::call_site(),
+                false,
                 vec![
                     grouped([repeated(Tree(tree!(B)))]),
                     grouped([repeated(Var(None, ident!(N)))])
@@ -277,8 +276,9 @@ mod tests {
         assert_eq!(
             part.compile(&ident!(N), true),
             repeated(Group(
-                Value::new(Delimiter::Parenthesis, true),
+                Delimiter::Parenthesis,
                 Span::call_site(),
+                true,
                 vec![
                     grouped([once(Tree(tree!(B)))]),
                     grouped([repeated(Var(None, ident!(N)))])
