@@ -100,9 +100,9 @@ impl ToTokens for Field<'_, '_> {
 mod tests {
     use syn_test::assert_token_stream_eq;
 
-    use crate::generate_macro;
+    use crate::generate_parse_quote;
 
-    generate_macro!(derive, syn::DeriveInput);
+    generate_parse_quote!(derive, syn::DeriveInput);
 
     macro_rules! fields {
         ($name: ident, $($tt:tt)*) => {

@@ -50,7 +50,7 @@ impl ToTokens for Debug {
 
 #[cfg(test)]
 mod tests {
-    use crate::{assert_token_stream_eq, generate_macro};
+    use crate::{assert_token_stream_eq, generate_parse_quote as generate_macro};
     generate_macro!(debug, super::Debug);
 
     #[test]

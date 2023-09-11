@@ -79,7 +79,7 @@ impl<'a> Generics<'a> {
 #[cfg(test)]
 mod tests {
     use super::Generics;
-    use crate::{assert_token_stream_eq, generate_macro};
+    use crate::{assert_token_stream_eq, generate_parse_quote as generate_macro};
     generate_macro!(type_of, syn::Type);
     generate_macro!(generics, syn::Generics);
     macro_rules! generics_of {
