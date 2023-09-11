@@ -369,6 +369,6 @@ mod tests {
     #[test]
     fn eval_var() {
         let var = Var(Some(ident!(f)), ident!(N));
-        assert_token_stream_eq!(var.eval(2..3), { f2 });
+        assert_token_stream_eq!(var.eval(2), { f2 });
     }
 }

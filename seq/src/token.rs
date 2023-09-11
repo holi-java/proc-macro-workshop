@@ -1,6 +1,5 @@
 use proc_macro2::{Delimiter, Group, Ident, Literal, Span, TokenStream, TokenTree};
 use quote::ToTokens;
-use quote::TokenStreamExt;
 
 use crate::compiler::{Context, Eval};
 
@@ -11,53 +10,48 @@ pub(crate) enum Token {
     Group(Delimiter, Span, bool, Vec<Context<Token>>),
 }
 
-impl Eval for Token {
-    fn eval(&self, range: impl IntoIterator<Item = i32> + Clone) -> TokenStream {
+impl Token {
+    pub fn eval(&self, n: i32) -> TokenStream {
         match self {
             Token::Var(None, var) => {
-                let mut tokens = TokenStream::new();
-                for n in range {
-                    let mut lit = Literal::i32_unsuffixed(n);
-                    lit.set_span(var.span());
-                    tokens.append(TokenTree::Literal(lit));
-                }
-                tokens
+                let mut lit = Literal::i32_unsuffixed(n);
+                lit.set_span(var.span());
+                lit.into_token_stream()
             }
             Token::Var(Some(prefix), _) => {
-                let mut tokens = TokenStream::new();
-                for n in range {
-                    tokens.append(Ident::new(&format!("{prefix}{n}"), prefix.span()));
-                }
-                tokens
+                Ident::new(&format!("{prefix}{n}"), prefix.span()).into_token_stream()
             }
-            Token::Tree(tree) => {
-                let mut tokens = TokenStream::new();
-                for _ in range {
-                    tokens.append(tree.clone());
-                }
-                tokens
+            Token::Tree(tree) => tree.into_token_stream(),
+            Token::Group(_, _, _, _) => unreachable!(),
+        }
+    }
+}
+
+impl Eval for Token {
+    fn eval(&self, range: impl IntoIterator<Item = i32> + Clone) -> TokenStream {
+        if let Token::Group(delim, span, inner, tokens) = self {
+            let group = |tt| {
+                let mut group = Group::new(*delim, tt);
+                group.set_span(*span);
+                TokenTree::Group(group)
+            };
+            if *inner {
+                return group(range.into_iter().map(|n| tokens.eval(Some(n))).collect())
+                    .into_token_stream();
             }
-            Token::Group(delim, span, inner, tokens) => {
-                let group = |tt| {
-                    let mut group = Group::new(*delim, tt);
-                    group.set_span(*span);
-                    TokenTree::Group(group)
-                };
-                if *inner {
-                    return group(range.into_iter().map(|n| tokens.eval(Some(n))).collect())
-                        .into_token_stream();
-                }
-                range
-                    .into_iter()
-                    .map(|n| group(tokens.eval(Some(n))))
-                    .collect()
-            }
+            range
+                .into_iter()
+                .map(|n| group(tokens.eval(Some(n))))
+                .collect()
+        } else {
+            range.into_iter().map(|n| self.eval(n)).collect()
         }
     }
 }
 
 #[cfg(test)]
 const _: () = {
+    use quote::TokenStreamExt;
     use syn::Token;
 
     use crate::stream::Stream;
@@ -132,13 +126,13 @@ mod tests {
 
     #[test]
     fn eval_vars() {
-        assert_token_stream_eq!(Var(None, ident!(N)).eval(1..2), { 1 });
-        assert_token_stream_eq!(Var(Some(ident!(f)), ident!(N)).eval(2..3), { f2 });
+        assert_token_stream_eq!(Var(None, ident!(N)).eval(1), { 1 });
+        assert_token_stream_eq!(Var(Some(ident!(f)), ident!(N)).eval(2), { f2 });
     }
 
     #[test]
     fn eval_token_tree() {
-        assert_token_stream_eq!(Tree(tree!(a)).eval(1..2), { a });
+        assert_token_stream_eq!(Tree(tree!(a)).eval(1), { a });
     }
 
     #[test]
@@ -153,6 +147,6 @@ mod tests {
                 repeated(Var(None, ident!(N))),
             ],
         );
-        assert_token_stream_eq!(group.eval(1..2), { [a, 1] });
+        assert_token_stream_eq!(Eval::eval(&group, 1..=1), { [a, 1] });
     }
 }
