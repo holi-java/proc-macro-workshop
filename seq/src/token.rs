@@ -38,21 +38,19 @@ impl Eval for Token {
                 tokens
             }
             Token::Group(delim, span, inner, tokens) => {
-                let mut body = TokenStream::new();
-                if !*inner {
-                    for n in range {
-                        let mut group = Group::new(*delim, tokens.eval(n..n + 1));
-                        group.set_span(*span);
-                        body.append(group);
-                    }
-                    return body;
+                let group = |tt| {
+                    let mut group = Group::new(*delim, tt);
+                    group.set_span(*span);
+                    TokenTree::Group(group)
+                };
+                if *inner {
+                    return group(range.into_iter().map(|n| tokens.eval(Some(n))).collect())
+                        .into_token_stream();
                 }
-                for n in range {
-                    body.extend(tokens.eval(n..n + 1));
-                }
-                let mut group = Group::new(*delim, body);
-                group.set_span(*span);
-                group.into_token_stream()
+                range
+                    .into_iter()
+                    .map(|n| group(tokens.eval(Some(n))))
+                    .collect()
             }
         }
     }

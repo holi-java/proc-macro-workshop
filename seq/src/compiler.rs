@@ -43,13 +43,7 @@ impl<T: Eval> Eval for Context<T> {
                 .map(|value| value.eval(range.clone()))
                 .unwrap_or_default(),
             Context::Repeat(item) => item.eval(range),
-            Context::Group(items) => {
-                let mut tokens = TokenStream::new();
-                for n in range {
-                    tokens.extend(items.eval(n..n + 1))
-                }
-                tokens
-            }
+            Context::Group(items) => range.into_iter().map(|n| items.eval(Some(n))).collect(),
         }
     }
 }
