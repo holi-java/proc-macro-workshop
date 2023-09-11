@@ -11,17 +11,17 @@ pub(crate) enum Token {
 }
 
 impl Token {
-    pub fn eval(&self, n: i32) -> TokenStream {
+    pub fn eval(&self, n: i32) -> TokenTree {
         match self {
             Token::Var(None, var) => {
                 let mut lit = Literal::i32_unsuffixed(n);
                 lit.set_span(var.span());
-                lit.into_token_stream()
+                lit.into()
             }
             Token::Var(Some(prefix), _) => {
-                Ident::new(&format!("{prefix}{n}"), prefix.span()).into_token_stream()
+                Ident::new(&format!("{prefix}{n}"), prefix.span()).into()
             }
-            Token::Tree(tree) => tree.into_token_stream(),
+            Token::Tree(tree) => tree.clone(),
             Token::Group(_, _, _, _) => unreachable!(),
         }
     }
