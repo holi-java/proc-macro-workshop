@@ -16,6 +16,18 @@ pub(crate) struct Part {
     pub body: TokenStream,
 }
 
+macro_rules! pop {
+    ($($var: ident),* => $tokens: ident($once: expr)) => {
+        $(pop!(@$var.take() => $tokens($once));)*
+    };
+    ($var: ident = $value: expr => $tokens: ident($once: expr)) => {
+        pop!(@$var.replace($value) => $tokens($once));
+    };
+    (@$action:expr => $tokens: ident($once: expr)) => {
+        $action.then(|tt| $tokens.push(Context::new(Tree(tt.into()), $once)));
+    };
+}
+
 impl Compiler for Part {
     type Output = Context<Token>;
 
@@ -32,13 +44,11 @@ impl Compiler for Part {
             let (mut prev, mut tilde) = (None, None);
             for tt in stream.into_iter() {
                 match tt {
-                    TokenTree::Ident(ident) if ident != *var && tilde.is_none() => prev
-                        .replace(ident)
-                        .then(|tt| tokens.push(Context::new(Tree(tt.into()), once))),
+                    TokenTree::Ident(ident) if ident != *var && tilde.is_none() => {
+                        pop!(prev = ident => tokens(once));
+                    }
                     TokenTree::Punct(punct) if punct.as_char() == '~' => {
-                        tilde
-                            .replace(punct)
-                            .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
+                        pop!(tilde = punct => tokens(once));
                         continue;
                     }
                     TokenTree::Ident(ident) if ident == *var => {
@@ -46,39 +56,27 @@ impl Compiler for Part {
                             tokens.push(Context::new(Var(prev.take(), ident), once));
                             continue;
                         }
-                        prev.take()
-                            .then(|prev| tokens.push(Context::new(Tree(prev.into()), once)));
+
+                        pop!(prev=> tokens(once));
                         tokens.push(Context::new(Var(None, ident), once));
                     }
                     TokenTree::Group(group) => {
                         let mut sub = vec![];
                         compile(group.stream(), var, once, &mut sub);
 
-                        prev.take()
-                            .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
-                        tilde
-                            .take()
-                            .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
+                        pop!(prev, tilde => tokens(once));
                         tokens.push(Context::new(
                             Group(group.delimiter(), group.span(), once, sub),
                             once,
                         ));
                     }
                     _ => {
-                        prev.take()
-                            .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
-                        tilde
-                            .take()
-                            .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
+                        pop!(prev, tilde => tokens(once));
                         tokens.push(Context::new(Tree(tt), once));
                     }
                 }
             }
-            prev.take()
-                .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
-            tilde
-                .take()
-                .then(|tt| tokens.push(Context::new(Tree(tt.into()), once)));
+            pop!(prev, tilde => tokens(once));
         }
     }
 }
