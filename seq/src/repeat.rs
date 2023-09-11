@@ -1,6 +1,7 @@
 use proc_macro2::Ident;
 use syn::{
     parse::{Parse, ParseStream},
+    token::Paren,
     Result, Token,
 };
 
@@ -14,14 +15,9 @@ pub(crate) struct Repeat {
 
 impl Parse for Repeat {
     fn parse(input: ParseStream) -> Result<Self> {
-        {
-            let _body;
-            let fork = input.fork();
-            fork.parse::<Token![#]>()?;
-            syn::parenthesized!(_body in fork);
-            fork.parse::<Token![*]>()?;
+        if !(input.peek(Token![#]) && input.peek2(Paren) && input.peek3(Token![*])) {
+            return Err(input.error("expected tokens: `#(...)*`"));
         }
-
         let body;
         input.parse::<Token![#]>()?;
         syn::parenthesized!(body in input);
@@ -73,13 +69,13 @@ mod tests {
     #[test]
     fn parse_repeat_error() {
         let err = repeat!(#(a b)).unwrap_err();
-        assert_eq!(err.to_string(), "expected `*`", "{:#?}", err);
+        assert_eq!(err.to_string(), "expected tokens: `#(...)*`", "{:#?}", err);
     }
 
     #[test]
     fn parse_repeat_with_brackets_error() {
         let err = repeat!(#[a b]*).unwrap_err();
-        assert_eq!(err.to_string(), "expected parentheses", "{:#?}", err);
+        assert_eq!(err.to_string(), "expected tokens: `#(...)*`", "{:#?}", err);
     }
 
     #[test]

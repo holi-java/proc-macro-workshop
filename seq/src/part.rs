@@ -42,10 +42,11 @@ impl Compiler for Part {
         {
             use Token::*;
             let (mut prev, mut tilde) = (None, None);
-            for tt in stream.into_iter() {
-                match tt {
+            for tt in stream {
+                let context = match tt {
                     TokenTree::Ident(ident) if ident != *var && tilde.is_none() => {
                         pop!(prev = ident => tokens(once));
+                        continue;
                     }
                     TokenTree::Punct(punct) if punct.as_char() == '~' => {
                         pop!(tilde = punct => tokens(once));
@@ -59,22 +60,17 @@ impl Compiler for Part {
 
                         pop!(prev=> tokens(once));
                         tokens.push(Context::new(Var(None, ident), once));
+                        continue;
                     }
                     TokenTree::Group(group) => {
                         let mut sub = vec![];
                         compile(group.stream(), var, once, &mut sub);
-
-                        pop!(prev, tilde => tokens(once));
-                        tokens.push(Context::new(
-                            Group(group.delimiter(), group.span(), once, sub),
-                            once,
-                        ));
+                        Context::new(Group(group.delimiter(), group.span(), once, sub), once)
                     }
-                    _ => {
-                        pop!(prev, tilde => tokens(once));
-                        tokens.push(Context::new(Tree(tt), once));
-                    }
-                }
+                    _ => Context::new(Tree(tt), once),
+                };
+                pop!(prev, tilde => tokens(once));
+                tokens.push(context);
             }
             pop!(prev, tilde => tokens(once));
         }

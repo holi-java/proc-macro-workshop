@@ -35,17 +35,19 @@ impl Eval for Token {
                 group.set_span(*span);
                 TokenTree::Group(group)
             };
+            // { #(...)* }
             if *inner {
                 return group(range.into_iter().map(|n| tokens.eval(Some(n))).collect())
                     .into_token_stream();
             }
-            range
+            // { ... }
+            return range
                 .into_iter()
                 .map(|n| group(tokens.eval(Some(n))))
-                .collect()
-        } else {
-            range.into_iter().map(|n| self.eval(n)).collect()
+                .collect();
         }
+
+        range.into_iter().map(|n| self.eval(n)).collect()
     }
 }
 
